@@ -1,0 +1,8 @@
+{
+  "name": "ALEDCS - C IDE",
+  "description": "ALEDCS: A beginner-focused C IDE with AI-powered error analysis, live execution tracing, multi-file support, and interactive debugging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

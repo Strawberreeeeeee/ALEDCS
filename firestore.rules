@@ -1,0 +1,135 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ---------------------------------------------------------
+    // GLOBAL HELPERS
+    // ---------------------------------------------------------
+    
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      // Use email-based bootstrap for the project owner
+      return isSignedIn() && (
+        request.auth.token.email == "samaniegomarcoooo@gmail.com" ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ---------------------------------------------------------
+    // VALIDATION HELPERS
+    // ---------------------------------------------------------
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['userId', 'displayName', 'email', 'createdAt']) &&
+             data.keys().size() == 4 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() <= 100 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.createdAt == request.time;
+    }
+
+    function isValidHistoryEntry(data) {
+      let requiredFields = ['code', 'output', 'createdAt'];
+      let optionalFields = ['explanation', 'projectId'];
+      return data.keys().hasAll(requiredFields) &&
+             data.keys().size() <= (requiredFields.size() + optionalFields.size()) &&
+             data.code is string && data.code.size() <= 50000 &&
+             data.output is string && data.output.size() <= 10000 &&
+             (!('explanation' in data) || (data.explanation is string && data.explanation.size() <= 50000)) &&
+             (!('projectId' in data) || (data.projectId is string && data.projectId.size() <= 128)) &&
+             data.createdAt == request.time;
+    }
+
+    function isValidProject(data) {
+      return data.keys().hasAll(['name', 'createdAt']) &&
+             data.keys().size() == 2 &&
+             data.name is string && data.name.size() <= 128 &&
+             data.createdAt == request.time;
+    }
+
+    function isValidVersion(data) {
+      return data.keys().hasAll(['code', 'activeFile', 'projectId', 'createdAt']) &&
+             data.keys().size() == 4 &&
+             data.code is string && data.code.size() <= 50000 &&
+             data.activeFile is string && data.activeFile.size() <= 256 &&
+             data.projectId is string && data.projectId.size() <= 128 &&
+             data.createdAt == request.time;
+    }
+
+    // ---------------------------------------------------------
+    // SECURITY RULES
+    // ---------------------------------------------------------
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin(); // Only admins can list all users
+      
+      allow create: if isOwner(userId) && isEmailVerified() && isValidUser(incoming());
+      
+      allow update: if (isOwner(userId) || isAdmin()) && 
+                    isValidUser(incoming()) &&
+                    incoming().userId == userId &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email']);
+
+      // History Subcollection
+      match /history/{historyId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isEmailVerified() && isValidHistoryEntry(incoming());
+        allow update: if false;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      // Projects Subcollection
+      match /projects/{projectId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isEmailVerified() && isValidProject(incoming());
+        allow update: if isOwner(userId) || isAdmin();
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+
+      // Versions Subcollection
+      match /versions/{versionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isEmailVerified() && isValidVersion(incoming());
+        allow update: if false;
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Admins Collection (Only readable/writable by other existing admins)
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}

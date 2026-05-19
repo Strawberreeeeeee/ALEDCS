@@ -1,0 +1,38 @@
+{
+  "entities": {
+    "user_profile": {
+      "title": "User Profile",
+      "description": "Minimal public user profile information.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The user's unique Firebase Auth UID." },
+        "displayName": { "type": "string", "description": "Display name used in the UI." },
+        "email": { "type": "string", "format": "email", "description": "Email address for identification." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation." }
+      },
+      "required": ["userId", "displayName", "email", "createdAt"]
+    },
+    "history_entry": {
+      "title": "Coding History Entry",
+      "description": "A single record of compiled code and AI explanation.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string", "description": "The C code compiled." },
+        "output": { "type": "string", "description": "The output of the compiler or executable." },
+        "explanation": { "type": "string", "description": "The AI provided explanation (if any)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of this entry." }
+      },
+      "required": ["code", "output", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user_profile",
+      "description": "User profile document."
+    },
+    "/users/{userId}/history/{historyId}": {
+      "schema": "history_entry",
+      "description": "Coding history subcollection for the user."
+    } 
+  }
+}
